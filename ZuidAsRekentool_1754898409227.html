@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DHM • Zuidas – AI & Warmte Simulator (v3.8.5 LTS • demo-optie)</title>
+<style>
+  :root{
+    --bg:#0f1621; --panel:#172030; --muted:#93a2b8; --txt:#e5eef9;
+    --accent:#e95b0c; --ok:#00c389; --warn:#ffb020; --line:#253349;
+  }
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .brand{display:flex;gap:10px;align-items:center;font-weight:700}
+  .logo{width:20px;height:20px;background:var(--accent);border-radius:4px;display:inline-block}
+  .health{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center}
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{font-size:16px;margin:0 0 8px}
+  label{font-weight:600;display:block;margin:10px 0 6px}
+  input[type=number],select{width:100%;padding:10px 12px;border:1px solid var(--line);background:#0c1320;color:var(--txt);border-radius:8px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .row > *{flex:1 1 160px}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 13px;cursor:pointer}
+  .btn.secondary{background:#2b3a52}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .switch{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap}
+  .switch label{font-weight:500;margin:0}
+  .kpi{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:12px}
+  .tile{border:1px solid var(--line);border-radius:10px;padding:12px;background:#0c1320;position:relative;overflow:hidden}
+  .tile h3{font-size:13px;color:var(--muted);margin:0 0 6px}
+  .tile .val{font-size:20px;font-weight:800;min-height:1.6em;transition:transform .2s ease, color .2s ease}
+  .tile.pulse .val{transform:scale(1.035); color:#fff;}
+  .sub{color:var(--muted);font-size:12px;margin-top:4px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;margin-left:6px}
+  .ok{color:var(--ok);border-color:rgba(0,195,137,.4)}
+  .warn{color:var(--warn);border-color:rgba(255,176,32,.4)}
+  footer{margin:16px 0;color:var(--muted);font-size:12px;text-align:right}
+  .err{position:fixed;right:12px;bottom:12px;background:#2b0b0b;color:#ffd5d5;border:1px solid #6f2020;border-radius:10px;padding:10px 12px;max-width:520px;display:none;white-space:pre-wrap;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:#253349;color:#d7e3f7;border:1px solid #324562;border-radius:999px;padding:4px 10px;font-size:12px}
+  .pill svg{width:12px;height:12px}
+  .demo-flag{display:none}
+  .demo-flag.on{display:inline-flex}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>DHM – advies, proces- en projectmanagement</div>
+    </div>
+    <div class="health" id="health">
+      <span>Build: v3.8.5 LTS • demo-optie • zelftest: …</span>
+      <span id="demo-flag" class="pill demo-flag"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#e95b0c" stroke-width="2"/><path d="M7 12h10" stroke="#e95b0c" stroke-width="2"/></svg>DEMO speelt</span>
+      <button class="btn secondary" id="btn-demo">Start demo</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card" id="panel-params">
+      <h2>Parameters</h2>
+      <div class="row" style="margin-bottom:6px">
+        <button class="btn" id="btn-preset-ams">Amsterdam-preset</button>
+        <button class="btn secondary" id="btn-preset-tarief">Tarief-preset (NL 2025, voorbeeld)</button>
+        <button class="btn secondary" id="btn-reset">Reset</button>
+        <button class="btn secondary" id="btn-export">Export JSON</button>
+        <button class="btn secondary" id="btn-import">Import JSON</button><input id="file-import" type="file" accept=".json" hidden>
+      </div>
+
+      <label for="usecase">Use-case profiel</label>
+      <select id="usecase">
+        <option value="mix">Gemengd (kantoor + wijk)</option>
+        <option value="meetings">Vergaderassistent (inference-zwaar)</option>
+        <option value="docs">Documentanalyse (gebalanceerd)</option>
+        <option value="finetune">Fine-tune lokaal (training-zwaar)</option>
+        <option value="facility">Gebouwbeheer AI (licht)</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label for="p_day">Elektriciteit dagtarief (€/MWh)</label>
+          <input id="p_day" type="number" min="0" value="150">
+        </div>
+        <div>
+          <label for="p_night">Elektriciteit nachttarief (€/MWh)</label>
+          <input id="p_night" type="number" min="0" value="90">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="p_heat">Warmtetarief (€/MWh<sub>th</sub>)</label>
+          <input id="p_heat" type="number" min="0" value="50">
+        </div>
+        <div>
+          <label for="house_mwh">Woning-equivalent (MWh/jaar)</label>
+          <input id="house_mwh" type="number" min="1" value="9">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="it_kw">AI-rack IT-vermogen (kW)</label>
+          <input id="it_kw" type="number" min="0" value="120">
+        </div>
+        <div>
+          <label for="heat_kw">Warmte-output (kW<sub>th</sub>)</label>
+          <input id="heat_kw" type="number" min="0" value="100">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="pue">PUE (–)</label>
+          <input id="pue" type="number" step="0.05" min="1" value="1.10">
+        </div>
+        <div>
+          <label for="water_l_per_kwh">Water make-up (l/kWh<sub>th</sub>)</label>
+          <input id="water_l_per_kwh" type="number" step="0.001" min="0" value="0.02">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="uptime">Uptime factor (0–1)</label>
+          <input id="uptime" type="number" step="0.01" min="0" max="1" value="0.95">
+        </div>
+        <div>
+          <label for="duty_inf">Duty inference, dag (0–1)</label>
+          <input id="duty_inf" type="number" step="0.01" min="0" max="1" value="0.60">
+        </div>
+        <div>
+          <label for="duty_train">Duty training, nacht (0–1)</label>
+          <input id="duty_train" type="number" step="0.01" min="0" max="1" value="0.60">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="bat_mwh">Batterij energie (MWh)</label>
+          <input id="bat_mwh" type="number" min="0" value="1">
+        </div>
+        <div>
+          <label for="bat_mw">Batterij vermogen (MW)</label>
+          <input id="bat_mw" type="number" min="0" value="0.3">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="bldg_day">Gebouw dagpiek (kW)</label>
+          <input id="bldg_day" type="number" min="0" value="600">
+        </div>
+        <div>
+          <label for="bldg_night">Gebouw nachtbaseload (kW)</label>
+          <input id="bldg_night" type="number" min="0" value="200">
+        </div>
+      </div>
+
+      <div class="switch">
+        <label><input id="ai_on" type="checkbox" checked> AI-rack actief</label>
+        <label><input id="heat_on" type="checkbox" checked> Warmte-terugwinning actief</label>
+        <label><input id="bat_on" type="checkbox" checked> Batterij actief (peak-shaving)</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Resultaten</h2>
+      <div class="kpi">
+        <div class="tile" id="t_cost">
+          <h3>Netto energiekosten/jaar <span class="badge warn">elektra – warmte</span></h3>
+          <div class="val" id="v_cost_cloud">–</div>
+          <div class="sub">Cloud-baseline</div>
+        </div>
+        <div class="tile" id="t_heat">
+          <h3>Geleverde warmte (MWh<sub>th</sub>/jaar)</h3>
+          <div class="val" id="v_heat_local">–</div>
+          <div class="sub">Lokaal AI+warmte</div>
+        </div>
+        <div class="tile" id="t_peak">
+          <h3>Max. netafname (kW)</h3>
+          <div class="val" id="v_peak_combo">–</div>
+          <div class="sub">Met AI-rack & batterij</div>
+        </div>
+        <div class="tile" id="t_co2">
+          <h3>Vermeden CO₂ (ton/jaar)</h3>
+          <div class="val" id="v_co2_local">–</div>
+          <div class="sub">Warmte → minder aardgas</div>
+        </div>
+        <div class="tile" id="t_water">
+          <h3>Water (m³/jaar)</h3>
+          <div class="val" id="v_water">–</div>
+          <div class="sub">Make-up water</div>
+        </div>
+        <div class="tile" id="t_houses">
+          <h3>Woningen-equivalent <span class="badge ok" id="v_houses_tip">ℹ︎</span></h3>
+          <div class="val" id="v_houses">–</div>
+          <div class="sub">≈ verwarming van woningen/jaar</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;color:var(--muted)">
+        <strong>Beleving:</strong>
+        <span id="b_rep">Data onder dak ✓</span> •
+        <span id="b_time">lage latentie</span> •
+        <span id="b_heat">restwarmte → warmtenet</span> •
+        <span id="b_houses_wrap">≈ <span id="b_houses">–</span> woningen</span>
+      </div>
+    </div>
+  </div>
+
+  <footer>Build: v3.8.5 LTS • DHM concepttool (offline) • Demo toont alleen KPIs en herstelt daarna exact je startwaarden</footer>
+</div>
+
+<div class="err" id="errlog"></div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (id)=>document.getElementById(id);
+  const err = $("errlog");
+  const demoFlag = $("demo-flag");
+  const setHealth = (s)=>{ const h=$("health"); if(h && h.firstElementChild) h.firstElementChild.textContent = 'Build: v3.8.5 LTS • demo-optie • zelftest: ' + s; };
+  const logErr = (e)=>{ err.style.display='block'; err.textContent = String(e).slice(0,800); setHealth('FAIL'); stopDemo(true); };
+
+  window.addEventListener('error', e=>logErr(e.message||e.error));
+
+  // Safe number coercion
+  const num = (v, f=0)=>{ const x = parseFloat(v); return Number.isFinite(x)?x:f; };
+
+  // Elements
+  const I = {
+    usecase:$("usecase"),
+    p_day:$("p_day"), p_night:$("p_night"), p_heat:$("p_heat"),
+    house_mwh:$("house_mwh"),
+    it_kw:$("it_kw"), heat_kw:$("heat_kw"), pue:$("pue"),
+    uptime:$("uptime"), duty_inf:$("duty_inf"), duty_train:$("duty_train"),
+    bat_mwh:$("bat_mwh"), bat_mw:$("bat_mw"),
+    water_l_per_kwh:$("water_l_per_kwh"),
+    bldg_day:$("bldg_day"), bldg_night:$("bldg_night"),
+    ai_on:$("ai_on"), heat_on:$("heat_on"), bat_on:$("bat_on")
+  };
+  const O = {
+    cost_cloud:$("v_cost_cloud"),
+    heat_local:$("v_heat_local"),
+    peak_combo:$("v_peak_combo"),
+    co2_local:$("v_co2_local"),
+    water:$("v_water"),
+    houses:$("v_houses"),
+    houses_tip:$("v_houses_tip"),
+    b_rep:$("b_rep"), b_time:$("b_time"), b_heat:$("b_heat"), b_houses:$("b_houses"),
+    tiles:[ $("t_cost"), $("t_heat"), $("t_peak"), $("t_co2"), $("t_water"), $("t_houses") ]
+  };
+
+  // Use-case presets
+  const uc = {
+    mix:{inf:0.60, train:0.60, up:0.90, rep:"Data onder dak ✓"},
+    meetings:{inf:0.90, train:0.30, up:0.95, rep:"Gespreksassistent ✓ • zeer lage latentie"},
+    docs:{inf:0.70, train:0.50, up:0.90, rep:"Documentanalyse ✓"},
+    finetune:{inf:0.40, train:0.90, up:0.95, rep:"Lokaal bijtrainen ✓"},
+    facility:{inf:0.25, train:0.25, up:0.70, rep:"Gebouwbeheer AI ✓"}
+  };
+  function applyUC(k){
+    const d = uc[k] || uc.mix;
+    I.duty_inf.value = d.inf; I.duty_train.value = d.train; I.uptime.value = d.up;
+    O.b_rep.textContent = d.rep;
+  }
+
+  function pulseTiles(){
+    O.tiles.forEach(t => { t.classList.add('pulse'); setTimeout(()=>t.classList.remove('pulse'), 240); });
+  }
+
+  function calc(){
+    try{
+      const hrsY=8760, hrsD=4380, hrsN=4380;
+      const pDay = num(I.p_day.value)/1000, pNight = num(I.p_night.value)/1000, pHeat = num(I.p_heat.value)/1000;
+      const itKW = num(I.it_kw.value), thKW = num(I.heat_kw.value), pue = Math.max(1,num(I.pue.value,1.1));
+      const uptime = Math.min(1, Math.max(0, num(I.uptime.value,0.9)));
+      const dutyInf = Math.min(1, Math.max(0, num(I.duty_inf.value,0.6)));
+      const dutyTrain = Math.min(1, Math.max(0, num(I.duty_train.value,0.6)));
+      const batMWh = Math.max(0,num(I.bat_mwh.value)), batMW = Math.max(0,num(I.bat_mw.value))*1000;
+      const wL = Math.max(0,num(I.water_l_per_kwh.value));
+      const bPeak = num(I.bldg_day.value), bNight = num(I.bldg_night.value);
+      const houseMWh = Math.max(1, num(I.house_mwh.value,9));
+
+      // baseline cost (alleen gebouw, grove indicatie)
+      const cloudCost = (bPeak*hrsD*pDay) + (bNight*hrsN*pNight);
+      O.cost_cloud.textContent = Math.round(cloudCost).toLocaleString('nl-NL');
+
+      // lokaal AI: elektra en warmte-opbrengst
+      const aiDayKWh = itKW*pue*uptime*dutyInf*hrsD;
+      const aiNightKWh = itKW*pue*uptime*dutyTrain*hrsN;
+      const heatMWh = I.heat_on.checked ? (thKW*uptime*(dutyInf*hrsD + dutyTrain*hrsN)/1000) : 0;
+      O.heat_local.textContent = Math.round(heatMWh).toLocaleString('nl-NL');
+
+      // CO2: 56.2 kg/GJ * 3.6 GJ/MWh = 202.32 kg/MWh_th
+      const co2_ton = heatMWh * 0.20232;
+      O.co2_local.textContent = co2_ton.toFixed(1).replace('.', ',');
+
+      // water
+      const water_m3 = heatMWh*1000 * wL / 1000;
+      O.water.textContent = Math.round(water_m3).toLocaleString('nl-NL');
+
+      // houses
+      const houses = heatMWh / houseMWh;
+      O.houses.textContent = Math.round(houses).toLocaleString('nl-NL');
+      O.b_houses.textContent = O.houses.textContent;
+      O.houses_tip.title = `≈ ${houses.toFixed(1).replace('.',',')} woningen/jaar bij ${houseMWh} MWh per woning`;
+
+      // peaks
+      const peakLocal = (I.ai_on.checked? itKW*pue*dutyInf : 0) + bPeak;
+      let peakWithBat = peakLocal;
+      if(I.bat_on.checked){
+        // eenvoudige shave: beperkt door vermogen én dagelijkse energie (2 piekuren/dag verondersteld)
+        const maxDailyShaveKWh = batMWh*1000/365; // kWh/dag
+        const shaveByPower = Math.min(batMW, peakLocal);             // kW
+        const shaveByEnergy = Math.max(0, maxDailyShaveKWh/2);       // kW over 2 uur
+        const shave = Math.min(shaveByPower, shaveByEnergy);
+        peakWithBat = Math.max(0, peakLocal - shave);
+      }
+      O.peak_combo.textContent = Math.round(peakWithBat).toLocaleString('nl-NL');
+
+      // beleving tekst
+      O.b_heat.textContent = I.heat_on.checked? "restwarmte → warmtenet ✓" : "warmte uit (geen terugwinning)";
+      O.b_time.textContent = (I.usecase.value==='meetings')? "zeer lage latentie ✓" : "lage latentie";
+    }catch(e){ logErr(e); }
+  }
+
+  function on(el, ev, fn){ el && el.addEventListener(ev, fn, {passive:true}); }
+
+  // Presets
+  const presetAMS = ()=>{
+    I.p_day.value=150; I.p_night.value=90; I.p_heat.value=50;
+    I.it_kw.value=120; I.heat_kw.value=100; I.pue.value=1.10;
+    I.uptime.value=0.95; I.duty_inf.value=0.60; I.duty_train.value=0.60;
+    I.bat_mwh.value=1; I.bat_mw.value=0.3;
+    I.water_l_per_kwh.value=0.02; I.bldg_day.value=600; I.bldg_night.value=200;
+    I.usecase.value='mix'; applyUC('mix'); calc();
+  };
+  const presetTarief = ()=>{ I.p_day.value=180; I.p_night.value=80; I.p_heat.value=55; calc(); };
+  const resetAll = ()=>{ presetAMS(); };
+
+  // Buttons
+  on($("btn-preset-ams"), "click", presetAMS);
+  on($("btn-preset-tarief"), "click", presetTarief);
+  on($("btn-reset"), "click", resetAll);
+  on($("btn-export"), "click", ()=>{
+    const data = {};
+    Object.keys(I).forEach(k=>{
+      const el = I[k]; if(!el || !('value' in el)) return;
+      data[k] = el.type==="checkbox" ? el.checked : el.value;
+    });
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "simulator_params.json"; a.click();
+  });
+  on($("btn-import"), "click", ()=>$("file-import").click());
+  on($("file-import"), "change", (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = ()=>{
+      try{
+        const data = JSON.parse(r.result);
+        Object.keys(data).forEach(k=>{
+          if(I[k]){
+            if(I[k].type==="checkbox") I[k].checked = !!data[k];
+            else I[k].value = data[k];
+          }
+        });
+        calc();
+      }catch(ex){ logErr(ex); }
+    };
+    r.readAsText(f);
+  });
+
+  // Live updates
+  Object.values(I).forEach(el=> on(el, "input", ()=>{ stopDemo(false); calc(); }));
+  on(I.usecase, "change", ()=>{ stopDemo(false); applyUC(I.usecase.value); calc(); });
+
+  // Zelftest
+  try{
+    applyUC(I.usecase.value);
+    presetAMS();
+    calc();
+
+    const before = {
+      heat: document.getElementById('v_heat_local').textContent,
+      peak: document.getElementById('v_peak_combo').textContent
+    };
+    I.usecase.value = 'finetune'; applyUC('finetune'); calc();
+    const after = {
+      heat: document.getElementById('v_heat_local').textContent,
+      peak: document.getElementById('v_peak_combo').textContent
+    };
+    if (before.heat !== after.heat || before.peak !== after.peak) {
+      setHealth('PASS');
+    } else {
+      setHealth('FAIL'); logErr('Zelftest: KPI’s veranderden niet bij use-case wissel.');
+    }
+    I.usecase.value='mix'; applyUC('mix'); calc();
+  }catch(e){ logErr(e); }
+
+  // DEMO MODE (veilig, herstelt exact naar startstaat)
+  let demoTimer=null, demoActive=false, demoIdx=0, demoSeq=['mix','meetings','docs','finetune','facility'], snapshot=null;
+
+  function takeSnapshot(){
+    const data = {};
+    Object.keys(I).forEach(k=>{
+      const el = I[k];
+      if(!el || !('value' in el)) return;
+      data[k] = el.type==="checkbox" ? el.checked : el.value;
+    });
+    return data;
+  }
+  function restoreSnapshot(snap){
+    Object.keys(snap).forEach(k=>{
+      if(I[k]){
+        if(I[k].type==="checkbox") I[k].checked = !!snap[k];
+        else I[k].value = snap[k];
+      }
+    });
+    applyUC(I.usecase.value);
+    calc();
+  }
+  function stepDemo(){
+    if(!demoActive) return;
+    const k = demoSeq[demoIdx % demoSeq.length];
+    I.usecase.value = k; applyUC(k); calc(); pulseTiles();
+    demoIdx++;
+    if(demoIdx >= demoSeq.length){ // eenmaal door de set
+      stopDemo(false); // automatisch stoppen en herstellen
+      return;
+    }
+  }
+  function startDemo(){
+    if(demoActive) return;
+    snapshot = takeSnapshot();
+    demoActive = true; demoIdx = 0;
+    demoFlag.classList.add('on');
+    document.getElementById('btn-demo').textContent = 'Stop demo';
+    // disable muterende knoppen
+    ['btn-preset-ams','btn-preset-tarief','btn-reset','btn-export','btn-import'].forEach(id=>{ const b=$(id); if(b) b.disabled=true; });
+    // loop langzaam zodat publiek ziet wat er gebeurt
+    stepDemo();
+    demoTimer = setInterval(stepDemo, 1500);
+  }
+  function stopDemo(fromError){
+    if(!demoActive) return;
+    clearInterval(demoTimer); demoTimer=null; demoActive=false;
+    demoFlag.classList.remove('on');
+    document.getElementById('btn-demo').textContent = 'Start demo';
+    ['btn-preset-ams','btn-preset-tarief','btn-reset','btn-export','btn-import'].forEach(id=>{ const b=$(id); if(b) b.disabled=false; });
+    if(snapshot && !fromError){ restoreSnapshot(snapshot); }
+    snapshot=null;
+  }
+
+  on($("btn-demo"), "click", ()=>{
+    if(demoActive) stopDemo(false);
+    else startDemo();
+  });
+
+})();
+</script>
+</body>
+</html>
